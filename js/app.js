@@ -1,155 +1,176 @@
 const { useState, useEffect, useRef } = React;
 
-function WMSApp() {
+function App() {
   const [screen, setScreen] = useState("login");
   const [pin, setPin] = useState("");
   const [user, setUser] = useState(null);
   const [products, setProducts] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [qty, setQty] = useState(1);
-  const [search, setSearch] = useState("");
   const [alert, setAlert] = useState(null);
+  const [manualSku, setManualSku] = useState("");
 
   useEffect(() => {
-    const p = localStorage.getItem("wms_products");
-    const l = localStorage.getItem("wms_logs");
+    const p = JSON.parse(localStorage.getItem("wms_products")) || [
+      { sku:"A001", name:"Laptop Dell", stock:10, min:3, loc:"A-01" },
+      { sku:"B002", name:"Mouse Logitech", stock:5, min:10, loc:"B-02" }
+    ];
+    setProducts(p);
 
-    if (p) setProducts(JSON.parse(p));
-    else {
-      const demo = [
-        { sku: "A001", name: "Laptop Dell", cat: "Tech", stock: 50, min: 10, loc: "A-01" },
-        { sku: "B002", name: "Mouse Logitech", cat: "Tech", stock: 5, min: 15, loc: "B-02" },
-        { sku: "C003", name: "Teclado HP", cat: "Tech", stock: 100, min: 20, loc: "C-03" }
-      ];
-      setProducts(demo);
-      localStorage.setItem("wms_products", JSON.stringify(demo));
-    }
-
-    if (l) setLogs(JSON.parse(l));
+    const l = JSON.parse(localStorage.getItem("wms_logs")) || [];
+    setLogs(l);
   }, []);
 
-  const saveProducts = (p) => {
+  const saveProducts = p => {
     setProducts(p);
     localStorage.setItem("wms_products", JSON.stringify(p));
   };
 
-  const addLog = (log) => {
-    const newLogs = [log, ...logs];
-    setLogs(newLogs);
-    localStorage.setItem("wms_logs", JSON.stringify(newLogs));
+  const saveLogs = l => {
+    setLogs(l);
+    localStorage.setItem("wms_logs", JSON.stringify(l));
   };
 
-  const showAlert = (msg, type = "success") => {
-    setAlert({ msg, type });
-    setTimeout(() => setAlert(null), 2000);
+  const show = (msg, type="ok") => {
+    setAlert({msg,type});
+    setTimeout(()=>setAlert(null),2000);
   };
 
-  const handleLogin = (p) => {
-    if (p === "1234") setUser({ name: "Admin", role: "admin" });
-    else if (p === "5678") setUser({ name: "Operator", role: "op" });
-    else return showAlert("PIN incorrecto", "error");
-    setPin("");
-    setScreen("dash");
-  };
-
-  const handlePinInput = (d) => {
-    const np = pin + d;
-    setPin(np);
-    if (np.length === 4) handleLogin(np);
-  };
-
-  const handleScan = (sku) => {
-    const prod = products.find(p => p.sku === sku);
-    if (prod) {
-      setSelectedProduct(prod);
-      setScreen("qty");
-      if (prod.stock <= prod.min) showAlert("Stock crítico", "warn");
+  const login = p => {
+    if (p === "1234") {
+      setUser({name:"Admin", role:"admin"});
+      setScreen("dash");
+    } else if (p === "5678") {
+      setUser({name:"Operador", role:"op"});
+      setScreen("dash");
     } else {
-      setSelectedProduct({ sku, isNew: true });
-      setScreen("new");
+      show("PIN incorrecto","error");
     }
+    setPin("");
   };
 
-  const handleUpdate = (type) => {
-    if (type === "out" && qty > selectedProduct.stock)
-      return showAlert("Stock insuficiente", "error");
-
+  const updateStock = type => {
     const delta = type === "in" ? qty : -qty;
+
     const updated = products.map(p =>
-      p.sku === selectedProduct.sku
-        ? { ...p, stock: p.stock + delta }
+      p.sku === selected.sku
+        ? {...p, stock:p.stock + delta}
         : p
     );
 
     saveProducts(updated);
-    addLog({
+
+    const log = {
+      time: new Date().toLocaleString(),
       user: user.name,
-      sku: selectedProduct.sku,
-      name: selectedProduct.name,
-      type,
+      sku: selected.sku,
+      name: selected.name,
       qty,
-      time: new Date().toLocaleString()
-    });
+      type
+    };
+
+    saveLogs([log, ...logs]);
 
     setQty(1);
-    setSelectedProduct(null);
+    setSelected(null);
     setScreen("dash");
-    showAlert("Actualizado");
+    show("Stock actualizado");
   };
 
+  const handleScan = sku => {
+    const p = products.find(x => x.sku === sku);
+    if (p) {
+      setSelected(p);
+      setScreen("qty");
+    } else {
+      show("Producto no existe","error");
+    }
+    setManualSku("");
+  };
+
+  const exportCSV = () => {
+    let csv = "Fecha,Usuario,SKU,Producto,Tipo,Cantidad\n";
+    logs.forEach(l=>{
+      csv += `${l.time},${l.user},${l.sku},${l.name},${l.type},${l.qty}\n`;
+    });
+
+    const blob = new Blob([csv], {type:"text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "reporte.csv";
+    a.click();
+  };
+
+  /* ---------- SCREENS ---------- */
+
   if (screen === "login") {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6">
-        <h1 className="text-4xl font-bold mb-8">📦 WMS PDA</h1>
-
-        <div className="flex gap-3 mb-8">
-          {[0,1,2,3].map(i => (
-            <div key={i} className={`w-5 h-5 rounded-full border ${pin.length > i ? "bg-green-500" : "border-gray-500"}`} />
-          ))}
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          {[1,2,3,4,5,6,7,8,9,"",0,"C"].map((n,i)=>(
-            <button
-              key={i}
-              onClick={()=>{
-                if (n === "C") setPin("");
-                else if (n !== "") handlePinInput(n.toString());
-              }}
-              className={`h-16 w-16 rounded-xl text-2xl font-bold ${
-                n === "C" ? "bg-red-700" : n === "" ? "invisible" : "bg-gray-800"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-
-        <p className="text-gray-500 mt-8">Demo: 1234 / 5678</p>
-      </div>
+    return React.createElement("div",{style:{padding:40,textAlign:"center"}},
+      React.createElement("h1",null,"WMS PDA"),
+      React.createElement("input",{
+        type:"password",
+        placeholder:"PIN",
+        value:pin,
+        onChange:e=>{
+          setPin(e.target.value);
+          if (e.target.value.length===4) login(e.target.value);
+        }
+      }),
+      React.createElement("p",null,"Demo: 1234 / 5678")
     );
   }
 
-  return (
-    <div className="min-h-screen p-6">
-      {alert && (
-        <div className={`fixed top-0 left-0 right-0 p-4 text-center font-bold z-50 ${
-          alert.type === "error" ? "bg-red-600" :
-          alert.type === "warn" ? "bg-yellow-600" : "bg-green-600"
-        }`}>
-          {alert.msg}
-        </div>
-      )}
+  if (screen === "dash") {
+    return React.createElement("div",{style:{padding:20}},
+      alert && React.createElement("div",{style:{background:"green"}},alert.msg),
+      React.createElement("h2",null,"Usuario: ",user.name),
 
-      <h2 className="text-2xl font-bold mb-6">{user.name}</h2>
+      React.createElement("button",{onClick:()=>setScreen("scan")},"Escanear / Manual"),
+      React.createElement("button",{onClick:()=>setScreen("history")},"Historial"),
+      React.createElement("button",{onClick:exportCSV},"Exportar CSV"),
+      React.createElement("button",{onClick:()=>{setUser(null);setScreen("login");}},"Salir")
+    );
+  }
 
-      <div className="grid grid-cols-2 gap-4">
-        <button onClick={() => setScreen("scan")} className="bg-green-600 p-8 rounded-xl">📷 Escanear</button>
-        <button onClick={() => setScreen("search")} className="bg-blue-600 p-8 rounded-xl">🔍 Buscar</button>
-      </div>
-    </div>
-  );
+  if (screen === "scan") {
+    return React.createElement("div",{style:{padding:20}},
+      React.createElement("h2",null,"Ingreso Manual SKU"),
+      React.createElement("input",{
+        value:manualSku,
+        onChange:e=>setManualSku(e.target.value)
+      }),
+      React.createElement("button",{onClick:()=>handleScan(manualSku)},"Confirmar"),
+      React.createElement("button",{onClick:()=>setScreen("dash")},"Volver")
+    );
+  }
+
+  if (screen === "qty") {
+    return React.createElement("div",{style:{padding:20}},
+      React.createElement("h2",null,selected.name),
+      React.createElement("p",null,"Stock: ",selected.stock),
+      React.createElement("input",{
+        type:"number",
+        value:qty,
+        onChange:e=>setQty(+e.target.value || 1)
+      }),
+      React.createElement("button",{onClick:()=>updateStock("in")},"Entrada"),
+      React.createElement("button",{onClick:()=>updateStock("out")},"Salida"),
+      React.createElement("button",{onClick:()=>setScreen("dash")},"Cancelar")
+    );
+  }
+
+  if (screen === "history") {
+    return React.createElement("div",{style:{padding:20}},
+      React.createElement("h2",null,"Historial"),
+      logs.map((l,i)=>
+        React.createElement("div",{key:i},
+          l.time," - ",l.sku," - ",l.type," - ",l.qty
+        )
+      ),
+      React.createElement("button",{onClick:()=>setScreen("dash")},"Volver")
+    );
+  }
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<WMSApp />);
+ReactDOM.createRoot(document.getElementById("root"))
+  .render(React.createElement(App));
