@@ -1,26 +1,29 @@
-html, body {
-  height: 100%;
+* {
+  box-sizing: border-box;
+  font-family: system-ui, sans-serif;
+}
+
+body {
   margin: 0;
-  background-color: #000;
+  background: #000;
+  color: #fff;
 }
 
-/* Scroll fino para PDA */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background-color: #444;
-  border-radius: 8px;
-}
-
-/* Mejor respuesta táctil */
 button {
-  touch-action: manipulation;
+  background: #222;
+  color: white;
+  border: none;
+  padding: 12px;
+  margin: 6px 0;
+  width: 100%;
+  font-size: 18px;
 }
 
-/* Ocultar flechas input number */
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+input {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  background: #111;
+  color: white;
+  border: 1px solid #333;
 }
